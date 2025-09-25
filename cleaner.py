@@ -39,7 +39,7 @@ class NewImage:
         self.draw_vertical_line(x, 1, color)
 
     def draw_vertical_line(self, x: int, w: int, color: tuple[int, int, int]):
-        cv2.rectangle(self._img, (x, 0), (x + w, self.size[1]), color, -1)
+        cv2.rectangle(self._img, (x, 0), (x + w, self.size[0]), color, -1)
 
     def draw_rect(
         self,
@@ -105,6 +105,8 @@ def process(
         + (len(rects) * options.segment_width)
         + (len(rects) * options.gap_width)
     )
+    click.echo(f"Original image: {img.shape[0]}x{img.shape[1]} px")
+    click.echo(f"new image: {img.shape[0]}x{new_width} px")
     # Create a new blank white canvas
     new_img = NewImage((img.shape[0], new_width))
 
@@ -112,19 +114,19 @@ def process(
     # The initial width and x doesn't matter, only the horizontal placement of each segment
     x = start_x
     lines, segments = 0, 0
-    for idx, key in enumerate(sorted(rects.keys())):
-        if options.draw_helper_lines and idx > 0:
-            if idx % 10 == 0:
-                new_img.draw_helper_line(x, RED)
-            elif idx % 2 == 0:
-                new_img.draw_helper_line(x, GRAY)
-
+    for key in sorted(rects.keys()):
         if sum(t[1] for t in rects[key]) < options.skip_if_pixels_below:
             click.secho(
                 f"Skipping line at x={key} with total height {sum(t[1] for t in rects[key])}",
                 fg="yellow",
             )
             continue
+
+        if options.draw_helper_lines:
+            if lines % 10 == 0:
+                new_img.draw_helper_line(x, RED)
+            elif lines % 2 == 0:
+                new_img.draw_helper_line(x, GRAY)
 
         for y, h in rects[key]:
             segments += 1
