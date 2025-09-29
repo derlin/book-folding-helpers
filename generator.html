@@ -1,0 +1,271 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Book Folding Pattern Generator</title>
+        <style>
+            body {
+                font-family: sans-serif;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 20px;
+            }
+            .controls {
+                margin-bottom: 20px;
+                border: 1px solid #ccc;
+                padding: 15px;
+                border-radius: 8px;
+            }
+            .controls label,
+            .controls input {
+                margin: 5px;
+            }
+            canvas {
+                border: 1px solid #000;
+            }
+            .buttons {
+                margin-top: 10px;
+            }
+            #download-link {
+                margin-left: 10px;
+            }
+            #page-count-display {
+                margin-top: 10px;
+                font-weight: bold;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>Book Folding Pattern Generator</h1>
+
+        <div class="controls">
+            <label for="image-upload">Upload Image:</label>
+            <input type="file" id="image-upload" accept="image/*" />
+            <br />
+            <label for="book-height">Book Height (cm):</label>
+            <input type="number" id="book-height" value="20.5" step="0.1" />
+            <br />
+            <label for="line-spacing">Line Spacing (px):</label>
+            <input
+                type="number"
+                id="line-spacing"
+                min="1"
+                max="100"
+                value="8"
+            />
+            <br />
+            <label for="horizontal-spacing"
+                >Horizontal Spacing (Multiplier):</label
+            >
+            <input
+                type="number"
+                id="horizontal-spacing"
+                min="1"
+                max="10"
+                value="1"
+                step="0.1"
+            />
+            <br />
+            <label for="line-thickness">Line Thickness (px):</label>
+            <input
+                type="number"
+                id="line-thickness"
+                min="1"
+                max="10"
+                value="2"
+            />
+            <br />
+            <input type="checkbox" id="helper-lines" checked="checked" />Draw
+            helper lines
+            <br />
+            <button id="generate-btn">Generate Pattern</button>
+            <button id="download-btn">Download as PNG</button>
+            <a id="download-link" style="display: none"></a>
+        </div>
+
+        <p id="page-count-display"></p>
+
+        <canvas id="preview-canvas"></canvas>
+
+        <script>
+            const imageUpload = document.getElementById("image-upload");
+            const bookHeightInput = document.getElementById("book-height");
+            const lineSpacingInput = document.getElementById("line-spacing");
+            const horizontalSpacingInput =
+                document.getElementById("horizontal-spacing");
+            const lineThicknessInput =
+                document.getElementById("line-thickness");
+            const helperLinesCheckbox = document.getElementById("helper-lines");
+            const generateBtn = document.getElementById("generate-btn");
+            const downloadBtn = document.getElementById("download-btn");
+            const downloadLink = document.getElementById("download-link");
+            const pageCountDisplay =
+                document.getElementById("page-count-display");
+            const canvas = document.getElementById("preview-canvas");
+            const ctx = canvas.getContext("2d");
+
+            let originalImage = null;
+
+            imageUpload.addEventListener("change", (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => {
+                            originalImage = img;
+                            generatePattern();
+                        };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            generateBtn.addEventListener("click", generatePattern);
+            downloadBtn.addEventListener("click", downloadAsPNG);
+
+            function generatePattern() {
+                if (!originalImage) {
+                    alert("Please upload an image first.");
+                    return;
+                }
+
+                const bookHeightCm = parseFloat(bookHeightInput.value);
+                const lineSpacing = parseInt(lineSpacingInput.value);
+                const horizontalSpacing = parseFloat(
+                    horizontalSpacingInput.value,
+                );
+                const lineThickness = parseInt(lineThicknessInput.value);
+                const helperLines = helperLinesCheckbox.checked;
+
+                // Temporary canvas for pixel data
+                const tempCanvas = document.createElement("canvas");
+                const tempCtx = tempCanvas.getContext("2d");
+                tempCanvas.width = originalImage.width;
+                tempCanvas.height = originalImage.height;
+                tempCtx.drawImage(originalImage, 0, 0);
+
+                const tempImageData = tempCtx.getImageData(
+                    0,
+                    0,
+                    tempCanvas.width,
+                    tempCanvas.height,
+                );
+                const data = tempImageData.data;
+                for (let i = 0; i < data.length; i += 4) {
+                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                    const color = avg > 128 ? 255 : 0;
+                    data[i] = data[i + 1] = data[i + 2] = color;
+                }
+                tempCtx.putImageData(tempImageData, 0, 0);
+
+                const finalImageData = tempCtx.getImageData(
+                    0,
+                    0,
+                    tempCanvas.width,
+                    tempCanvas.height,
+                );
+                const finalData = finalImageData.data;
+
+                const measurements = [];
+                let pageNumber = 1;
+                let linesCount = 0;
+                let segmentsCount = 0;
+
+                // Set final canvas dimensions based on new spacing
+                canvas.width = originalImage.width * horizontalSpacing;
+                canvas.height = originalImage.height;
+
+                // white bg
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = "#FFFFFF";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                for (let x = 0; x < tempCanvas.width; x += lineSpacing) {
+                    let startY = -1;
+                    const segments = [];
+                    for (let y = 0; y < tempCanvas.height; y++) {
+                        const pixelIndex = (y * tempCanvas.width + x) * 4;
+                        const r = finalData[pixelIndex];
+                        const g = finalData[pixelIndex + 1];
+                        const b = finalData[pixelIndex + 2];
+
+                        const isDark = (r + g + b) / 3 < 128;
+
+                        if (isDark) {
+                            if (startY === -1) {
+                                startY = y;
+                            }
+                        } else {
+                            if (startY !== -1) {
+                                segments.push({ start: startY, end: y - 1 });
+                                startY = -1;
+                            }
+                        }
+                    }
+
+                    if (startY !== -1) {
+                        segments.push({
+                            start: startY,
+                            end: tempCanvas.height - 1,
+                        });
+                    }
+
+                    if (segments.length > 0) {
+                        if (helperLines && linesCount % 2 == 0) {
+                            ctx.beginPath();
+                            ctx.moveTo(x * horizontalSpacing, 0);
+                            ctx.lineTo(
+                                x * horizontalSpacing,
+                                tempCanvas.height,
+                            );
+                            ctx.lineWidth = 1;
+                            ctx.strokeStyle =
+                                linesCount % 10 == 0 ? "#ff0000" : "#c8c8c8";
+                            ctx.stroke();
+                        }
+                        linesCount += 1;
+
+                        const newX = x * horizontalSpacing;
+                        segments.forEach((seg) => {
+                            const topCm =
+                                (seg.start / tempCanvas.height) * bookHeightCm;
+                            const bottomCm =
+                                (seg.end / tempCanvas.height) * bookHeightCm;
+                            measurements.push({
+                                page: pageNumber,
+                                top: topCm,
+                                bottom: bottomCm,
+                            });
+
+                            ctx.beginPath();
+                            ctx.moveTo(newX, seg.start);
+                            ctx.lineTo(newX, seg.end);
+                            ctx.lineWidth = lineThickness;
+                            ctx.strokeStyle = "black";
+                            ctx.stroke();
+
+                            pageNumber += 2;
+                            segmentsCount++;
+                        });
+                    }
+                }
+
+                pageCountDisplay.textContent = `Total lines: ${linesCount} -> ${linesCount * 2}\nTotal segments: ${segmentsCount} -> ${pageNumber - 1} pages`;
+                canvas.measurements = measurements;
+            }
+
+            function downloadAsPNG() {
+                if (!canvas.measurements || canvas.measurements.length === 0) {
+                    alert("Please generate a pattern first.");
+                    return;
+                }
+                const dataURL = canvas.toDataURL("image/png");
+                downloadLink.href = dataURL;
+                downloadLink.download = "book_folding_pattern.png";
+                downloadLink.click();
+            }
+        </script>
+    </body>
+</html>
