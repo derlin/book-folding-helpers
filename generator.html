@@ -72,6 +72,15 @@
                     value="2"
                 />
                 <br />
+                <label for="padding">Padding (px):</label>
+                <input
+                    type="number"
+                    id="padding"
+                    min="1"
+                    max="100"
+                    value="10"
+                />
+                <br />
                 <input type="checkbox" id="helper-lines" checked="checked" />
                 <label for="helper-lines">Draw helper lines</label>
             </div>
@@ -91,6 +100,7 @@
                 document.getElementById("horizontal-spacing");
             const lineThicknessInput =
                 document.getElementById("line-thickness");
+            const paddingInput = document.getElementById("padding");
             const helperLinesCheckbox = document.getElementById("helper-lines");
             const generateBtn = document.getElementById("generate-btn");
             const downloadBtn = document.getElementById("download-btn");
@@ -102,8 +112,8 @@
 
             let originalImage = null;
             let data = null;
-            let originalStartX = null;
-            let originalStopX = null;
+            let boundaries = null; // [[x_min, x_max], [y_min, y_max]]
+            let padding = null;
 
             imageUpload.addEventListener("change", (e) => {
                 const file = e.target.files[0];
@@ -139,6 +149,7 @@
                     horizontalSpacingInput.value,
                 );
                 const lineThickness = parseInt(lineThicknessInput.value);
+                const padding = parseInt(paddingInput.value);
                 const helperLines = helperLinesCheckbox.checked;
 
                 let pageNumber = 1;
@@ -146,8 +157,12 @@
                 let segmentsCount = 0;
 
                 // Set final canvas dimensions based on new spacing
-                canvas.width = originalImage.width * horizontalSpacing;
-                canvas.height = originalImage.height;
+                canvas.width =
+                    boundaries[0][1] * horizontalSpacing -
+                    boundaries[0][0] +
+                    padding * 2;
+                canvas.height =
+                    boundaries[1][1] - boundaries[1][0] + padding * 2;
 
                 // white bg
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -155,8 +170,8 @@
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
                 for (
-                    let x = originalStartX;
-                    x <= originalStopX;
+                    let x = boundaries[0][0];
+                    x <= boundaries[0][1];
                     x += lineSpacing
                 ) {
                     let startY = -1;
@@ -184,14 +199,14 @@
                         });
                     }
 
-                    const newX = Math.round(
-                        (x - originalStartX) * horizontalSpacing,
-                    );
+                    const newX =
+                        Math.round((x - boundaries[0][0]) * horizontalSpacing) +
+                        padding;
 
                     if (helperLines && linesCount % 2 == 0) {
                         ctx.beginPath();
                         ctx.moveTo(newX, 0);
-                        ctx.lineTo(newX, originalImage.height);
+                        ctx.lineTo(newX, canvas.height);
                         ctx.lineWidth = 1;
                         ctx.strokeStyle =
                             linesCount % 10 == 0 ? "#ff0000" : "#c8c8c8";
@@ -199,15 +214,19 @@
                     }
                     linesCount += 1;
 
+                    const yShift = padding - boundaries[1][0];
                     if (segments.length > 0) {
                         segments.forEach((seg) => {
                             ctx.beginPath();
-                            ctx.moveTo(newX, seg.start);
+                            ctx.moveTo(newX, seg.start + yShift);
                             if (seg.start == seg.end) {
                                 // 1px, so make it show
-                                ctx.lineTo(newX, seg.start + lineThickness);
+                                ctx.lineTo(
+                                    newX,
+                                    seg.start + lineThickness + yShift,
+                                );
                             } else {
-                                ctx.lineTo(newX, seg.end);
+                                ctx.lineTo(newX, seg.end + yShift);
                             }
                             ctx.lineWidth = lineThickness;
                             ctx.strokeStyle = "black";
@@ -255,8 +274,10 @@
                 );
                 data = finalImageData.data;
 
-                let startX = 0;
-                let stopX = originalImage.width;
+                boundaries = [
+                    [0, 0], // x0, x1
+                    [originalImage.height, 0], // y0, y1
+                ];
 
                 for (let x = 0; x < originalImage.width; x++) {
                     for (let y = 0; y < originalImage.height; y++) {
@@ -264,15 +285,14 @@
                         const isDark = data[pixelIndex] < 128;
 
                         if (isDark) {
-                            if (startX == 0) startX = x;
-                            stopX = x;
+                            if (boundaries[0][0] == 0) boundaries[0][0] = x;
+                            boundaries[0][1] = x;
+                            boundaries[1][0] = Math.min(y, boundaries[1][0]);
+                            boundaries[1][1] = Math.max(y, boundaries[1][1]);
                         }
                     }
                 }
-
-                originalStartX = startX;
-                originalStopX = stopX;
-                console.log("start and stop x", originalStartX, originalStopX);
+                console.log("Boundaries", boundaries);
             }
 
             function downloadAsPNG() {
