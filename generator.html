@@ -9,29 +9,67 @@
                 flex-direction: column;
                 align-items: center;
                 padding: 20px;
+                row-gap: 20px;
             }
             .controls {
-                margin-bottom: 20px;
-                border: 1px solid #ccc;
+                background: white;
                 padding: 15px;
                 border-radius: 8px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             }
-            .controls label,
-            .controls input {
+            fieldset {
+                margin-top: 20px;
+                border-radius: 8px;
+                border: 1px solid #afafaf;
+            }
+            .form-row {
                 margin: 5px;
             }
             canvas {
-                border: 1px solid #000;
+                background: white;
+                max-width: calc(100% - 1em);
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                display: none;
             }
             .buttons {
+                text-align: center;
                 margin-top: 10px;
+                padding: 5px;
             }
-            #download-link {
-                margin-left: 10px;
+            .buttons button {
+                margin: 5px;
             }
-            #page-count-display {
-                margin-top: 10px;
-                font-weight: bold;
+
+            /* info display */
+            #info-display {
+                display: flex;
+                justify-content: space-around;
+                align-items: center;
+                gap: 20px;
+                flex-wrap: wrap;
+            }
+
+            #info-display > div {
+                background-color: #fff;
+                padding: 10px 20px;
+                border-radius: 6px;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+                min-width: 150px;
+                text-align: center;
+                line-height: 1.6;
+            }
+
+            .highlight {
+                font-weight: 500;
+                color: #007bff;
+                font-size: 1.1em;
+            }
+
+            /* Style the parameter line to ensure it's readable */
+            #info-display > div:last-child {
+                font-size: 0.9em;
+                color: #666;
+                font-family: monospace;
             }
         </style>
     </head>
@@ -39,57 +77,77 @@
         <h1>Book Folding Pattern Generator</h1>
 
         <div class="controls">
-            <label for="image-upload">Upload Image:</label>
-            <input type="file" id="image-upload" accept="image/*" />
-            <div class="params">
-                <label for="line-spacing">Line Spacing (px):</label>
-                <input
-                    type="number"
-                    id="line-spacing"
-                    min="1"
-                    max="100"
-                    value="8"
-                />
-                <br />
-                <label for="horizontal-spacing"
-                    >Horizontal Spacing (Multiplier):</label
-                >
-                <input
-                    type="number"
-                    id="horizontal-spacing"
-                    min="1"
-                    max="10"
-                    value="1"
-                    step="0.1"
-                />
-                <br />
-                <label for="line-thickness">Line Thickness (px):</label>
-                <input
-                    type="number"
-                    id="line-thickness"
-                    min="1"
-                    max="10"
-                    value="2"
-                />
-                <br />
-                <label for="padding">Padding (px):</label>
-                <input
-                    type="number"
-                    id="padding"
-                    min="1"
-                    max="100"
-                    value="10"
-                />
-                <br />
-                <input type="checkbox" id="helper-lines" checked="checked" />
-                <label for="helper-lines">Draw helper lines</label>
+            <div class="form-row">
+                <label for="image-upload">Upload Image:</label>
+                <input type="file" id="image-upload" accept="image/*" />
             </div>
-            <button id="generate-btn">Generate Pattern</button>
-            <button id="download-btn">Download as PNG</button>
+            <div class="params">
+                <fieldset class="input-group">
+                    <legend>Input</legend>
+                    <div class="form-row">
+                        <label for="line-spacing">Stripes Spacing (px):</label>
+                        <input
+                            type="number"
+                            id="line-spacing"
+                            min="1"
+                            max="100"
+                            value="8"
+                        />
+                    </div>
+                </fieldset>
+                <fieldset class="input-group">
+                    <legend>Output</legend>
+                    <div class="form-row">
+                        <label for="line-thickness">Line Thickness (px):</label>
+                        <input
+                            type="number"
+                            id="line-thickness"
+                            min="1"
+                            max="10"
+                            value="2"
+                        />
+                    </div>
+                    <div class="form-row">
+                        <label for="horizontal-spacing"
+                            >Horizontal Spacing (Multiplier):</label
+                        >
+                        <input
+                            type="number"
+                            id="horizontal-spacing"
+                            min="1"
+                            max="10"
+                            value="1"
+                            step="0.1"
+                        />
+                    </div>
+                    <div class="form-row">
+                        <label for="padding">Padding (px):</label>
+                        <input
+                            type="number"
+                            id="padding"
+                            min="1"
+                            max="100"
+                            value="10"
+                        />
+                    </div>
+                    <div class="form-row checkbox-row">
+                        <input
+                            type="checkbox"
+                            id="helper-lines"
+                            checked="checked"
+                        />
+                        <label for="helper-lines">Draw helper lines</label>
+                    </div>
+                </fieldset>
+            </div>
+            <div class="buttons">
+                <button id="generate-btn">Generate Pattern</button>
+                <button id="download-btn">Download as PNG</button>
+            </div>
             <a id="download-link" style="display: none"></a>
         </div>
 
-        <p id="page-count-display"></p>
+        <div id="info-display">Upload an image to get started!</div>
 
         <canvas id="preview-canvas"></canvas>
 
@@ -105,8 +163,7 @@
             const generateBtn = document.getElementById("generate-btn");
             const downloadBtn = document.getElementById("download-btn");
             const downloadLink = document.getElementById("download-link");
-            const pageCountDisplay =
-                document.getElementById("page-count-display");
+            const infoDisplay = document.getElementById("info-display");
             const canvas = document.getElementById("preview-canvas");
             const ctx = canvas.getContext("2d");
 
@@ -133,7 +190,9 @@
             });
 
             document.querySelectorAll("div.params input").forEach((input) => {
-                input.addEventListener("change", (event) => generatePattern());
+                input.addEventListener("change", (event) => {
+                    if (originalImage) generatePattern();
+                });
             });
             generateBtn.addEventListener("click", generatePattern);
             downloadBtn.addEventListener("click", downloadAsPNG);
@@ -238,7 +297,19 @@
                     }
                 }
 
-                pageCountDisplay.textContent = `Total lines: ${linesCount} -> ${linesCount * 2}\nTotal segments: ${segmentsCount} -> ${pageNumber - 1} pages`;
+                canvas.style.display = "block";
+                infoDisplay.innerHTML = `
+                  <div>
+                   Lines: <span class="highlight">${linesCount}</span>
+                   → <span class="highlight">${linesCount * 2}</span> pages
+                  </div>
+                  <div>
+                   Segments: <span class="highlight">${segmentsCount}</span>
+                   → <span class="highlight">${pageNumber - 1}</span> pages
+                  </div>
+                  <div>
+                   Params: stripes=${lineSpacing} thickness=${lineThickness} spacing=${lineSpacing}
+                  </div>`;
             }
 
             function loadImage() {
