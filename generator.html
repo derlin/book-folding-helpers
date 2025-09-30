@@ -41,43 +41,40 @@
         <div class="controls">
             <label for="image-upload">Upload Image:</label>
             <input type="file" id="image-upload" accept="image/*" />
-            <br />
-            <label for="book-height">Book Height (cm):</label>
-            <input type="number" id="book-height" value="20.5" step="0.1" />
-            <br />
-            <label for="line-spacing">Line Spacing (px):</label>
-            <input
-                type="number"
-                id="line-spacing"
-                min="1"
-                max="100"
-                value="8"
-            />
-            <br />
-            <label for="horizontal-spacing"
-                >Horizontal Spacing (Multiplier):</label
-            >
-            <input
-                type="number"
-                id="horizontal-spacing"
-                min="1"
-                max="10"
-                value="1"
-                step="0.1"
-            />
-            <br />
-            <label for="line-thickness">Line Thickness (px):</label>
-            <input
-                type="number"
-                id="line-thickness"
-                min="1"
-                max="10"
-                value="2"
-            />
-            <br />
-            <input type="checkbox" id="helper-lines" checked="checked" />Draw
-            helper lines
-            <br />
+            <div class="params">
+                <label for="line-spacing">Line Spacing (px):</label>
+                <input
+                    type="number"
+                    id="line-spacing"
+                    min="1"
+                    max="100"
+                    value="8"
+                />
+                <br />
+                <label for="horizontal-spacing"
+                    >Horizontal Spacing (Multiplier):</label
+                >
+                <input
+                    type="number"
+                    id="horizontal-spacing"
+                    min="1"
+                    max="10"
+                    value="1"
+                    step="0.1"
+                />
+                <br />
+                <label for="line-thickness">Line Thickness (px):</label>
+                <input
+                    type="number"
+                    id="line-thickness"
+                    min="1"
+                    max="10"
+                    value="2"
+                />
+                <br />
+                <input type="checkbox" id="helper-lines" checked="checked" />
+                <label for="helper-lines">Draw helper lines</label>
+            </div>
             <button id="generate-btn">Generate Pattern</button>
             <button id="download-btn">Download as PNG</button>
             <a id="download-link" style="display: none"></a>
@@ -89,7 +86,6 @@
 
         <script>
             const imageUpload = document.getElementById("image-upload");
-            const bookHeightInput = document.getElementById("book-height");
             const lineSpacingInput = document.getElementById("line-spacing");
             const horizontalSpacingInput =
                 document.getElementById("horizontal-spacing");
@@ -105,6 +101,9 @@
             const ctx = canvas.getContext("2d");
 
             let originalImage = null;
+            let data = null;
+            let originalStartX = null;
+            let originalStopX = null;
 
             imageUpload.addEventListener("change", (e) => {
                 const file = e.target.files[0];
@@ -114,6 +113,7 @@
                         const img = new Image();
                         img.onload = () => {
                             originalImage = img;
+                            loadImage();
                             generatePattern();
                         };
                         img.src = event.target.result;
@@ -122,6 +122,9 @@
                 }
             });
 
+            document.querySelectorAll("div.params input").forEach((input) => {
+                input.addEventListener("change", (event) => generatePattern());
+            });
             generateBtn.addEventListener("click", generatePattern);
             downloadBtn.addEventListener("click", downloadAsPNG);
 
@@ -131,7 +134,6 @@
                     return;
                 }
 
-                const bookHeightCm = parseFloat(bookHeightInput.value);
                 const lineSpacing = parseInt(lineSpacingInput.value);
                 const horizontalSpacing = parseFloat(
                     horizontalSpacingInput.value,
@@ -139,36 +141,6 @@
                 const lineThickness = parseInt(lineThicknessInput.value);
                 const helperLines = helperLinesCheckbox.checked;
 
-                // Temporary canvas for pixel data
-                const tempCanvas = document.createElement("canvas");
-                const tempCtx = tempCanvas.getContext("2d");
-                tempCanvas.width = originalImage.width;
-                tempCanvas.height = originalImage.height;
-                tempCtx.drawImage(originalImage, 0, 0);
-
-                const tempImageData = tempCtx.getImageData(
-                    0,
-                    0,
-                    tempCanvas.width,
-                    tempCanvas.height,
-                );
-                const data = tempImageData.data;
-                for (let i = 0; i < data.length; i += 4) {
-                    const avg = (data[i] + data[i + 1] + data[i + 2]) / 3;
-                    const color = avg > 128 ? 255 : 0;
-                    data[i] = data[i + 1] = data[i + 2] = color;
-                }
-                tempCtx.putImageData(tempImageData, 0, 0);
-
-                const finalImageData = tempCtx.getImageData(
-                    0,
-                    0,
-                    tempCanvas.width,
-                    tempCanvas.height,
-                );
-                const finalData = finalImageData.data;
-
-                const measurements = [];
                 let pageNumber = 1;
                 let linesCount = 0;
                 let segmentsCount = 0;
@@ -182,16 +154,16 @@
                 ctx.fillStyle = "#FFFFFF";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-                for (let x = 0; x < tempCanvas.width; x += lineSpacing) {
+                for (
+                    let x = originalStartX;
+                    x <= originalStopX;
+                    x += lineSpacing
+                ) {
                     let startY = -1;
                     const segments = [];
-                    for (let y = 0; y < tempCanvas.height; y++) {
-                        const pixelIndex = (y * tempCanvas.width + x) * 4;
-                        const r = finalData[pixelIndex];
-                        const g = finalData[pixelIndex + 1];
-                        const b = finalData[pixelIndex + 2];
-
-                        const isDark = (r + g + b) / 3 < 128;
+                    for (let y = 0; y < originalImage.height; y++) {
+                        const pixelIndex = (y * originalImage.width + x) * 4;
+                        const isDark = data[pixelIndex] < 128;
 
                         if (isDark) {
                             if (startY === -1) {
@@ -208,40 +180,35 @@
                     if (startY !== -1) {
                         segments.push({
                             start: startY,
-                            end: tempCanvas.height - 1,
+                            end: originalImage.height - 1,
                         });
                     }
 
+                    const newX = Math.round(
+                        (x - originalStartX) * horizontalSpacing,
+                    );
+
+                    if (helperLines && linesCount % 2 == 0) {
+                        ctx.beginPath();
+                        ctx.moveTo(newX, 0);
+                        ctx.lineTo(newX, originalImage.height);
+                        ctx.lineWidth = 1;
+                        ctx.strokeStyle =
+                            linesCount % 10 == 0 ? "#ff0000" : "#c8c8c8";
+                        ctx.stroke();
+                    }
+                    linesCount += 1;
+
                     if (segments.length > 0) {
-                        if (helperLines && linesCount % 2 == 0) {
-                            ctx.beginPath();
-                            ctx.moveTo(x * horizontalSpacing, 0);
-                            ctx.lineTo(
-                                x * horizontalSpacing,
-                                tempCanvas.height,
-                            );
-                            ctx.lineWidth = 1;
-                            ctx.strokeStyle =
-                                linesCount % 10 == 0 ? "#ff0000" : "#c8c8c8";
-                            ctx.stroke();
-                        }
-                        linesCount += 1;
-
-                        const newX = x * horizontalSpacing;
                         segments.forEach((seg) => {
-                            const topCm =
-                                (seg.start / tempCanvas.height) * bookHeightCm;
-                            const bottomCm =
-                                (seg.end / tempCanvas.height) * bookHeightCm;
-                            measurements.push({
-                                page: pageNumber,
-                                top: topCm,
-                                bottom: bottomCm,
-                            });
-
                             ctx.beginPath();
                             ctx.moveTo(newX, seg.start);
-                            ctx.lineTo(newX, seg.end);
+                            if (seg.start == seg.end) {
+                                // 1px, so make it show
+                                ctx.lineTo(newX, seg.start + lineThickness);
+                            } else {
+                                ctx.lineTo(newX, seg.end);
+                            }
                             ctx.lineWidth = lineThickness;
                             ctx.strokeStyle = "black";
                             ctx.stroke();
@@ -253,12 +220,64 @@
                 }
 
                 pageCountDisplay.textContent = `Total lines: ${linesCount} -> ${linesCount * 2}\nTotal segments: ${segmentsCount} -> ${pageNumber - 1} pages`;
-                canvas.measurements = measurements;
+            }
+
+            function loadImage() {
+                if (!originalImage) return;
+
+                // Temporary canvas for pixel data
+                const tempCanvas = document.createElement("canvas");
+                const tempCtx = tempCanvas.getContext("2d");
+                tempCanvas.width = originalImage.width;
+                tempCanvas.height = originalImage.height;
+                tempCtx.drawImage(originalImage, 0, 0);
+
+                const tempImageData = tempCtx.getImageData(
+                    0,
+                    0,
+                    tempCanvas.width,
+                    tempCanvas.height,
+                );
+                const tempData = tempImageData.data;
+                for (let i = 0; i < tempData.length; i += 4) {
+                    const avg =
+                        (tempData[i] + tempData[i + 1] + tempData[i + 2]) / 3;
+                    const color = avg > 128 ? 255 : 0;
+                    tempData[i] = tempData[i + 1] = tempData[i + 2] = color;
+                }
+                tempCtx.putImageData(tempImageData, 0, 0);
+
+                const finalImageData = tempCtx.getImageData(
+                    0,
+                    0,
+                    tempCanvas.width,
+                    tempCanvas.height,
+                );
+                data = finalImageData.data;
+
+                let startX = 0;
+                let stopX = originalImage.width;
+
+                for (let x = 0; x < originalImage.width; x++) {
+                    for (let y = 0; y < originalImage.height; y++) {
+                        const pixelIndex = (y * originalImage.width + x) * 4;
+                        const isDark = data[pixelIndex] < 128;
+
+                        if (isDark) {
+                            if (startX == 0) startX = x;
+                            stopX = x;
+                        }
+                    }
+                }
+
+                originalStartX = startX;
+                originalStopX = stopX;
+                console.log("start and stop x", originalStartX, originalStopX);
             }
 
             function downloadAsPNG() {
-                if (!canvas.measurements || canvas.measurements.length === 0) {
-                    alert("Please generate a pattern first.");
+                if (!originalImage) {
+                    alert("Please upload an image first.");
                     return;
                 }
                 const dataURL = canvas.toDataURL("image/png");
